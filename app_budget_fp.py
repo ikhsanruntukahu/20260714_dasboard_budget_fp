@@ -1,11 +1,17 @@
+from PIL import Image
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="Financial Dashboard", layout="wide", initial_sidebar_state="expanded")
+# LANDING PAGE
+try:
+    logo = Image.open("_ MDPI Primary Logo.png")
+    st.set_page_config(page_title="Dashbard Budget FP-MDPI", page_icon=logo, layout="wide", initial_sidebar_state="expanded")
+except:
+    st.set_page_config(page_title="Dashbard Budget FP-MDPI", layout="wide", initial_sidebar_state="expanded")
+
 
 # --- CUSTOM CSS ---
 st.markdown("""
@@ -22,8 +28,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- MAIN TITLE (TAMBAHKAN INI DI SINI) ---
+# ==========================================================
+st.title("Dashboard Budget FP")
+st.markdown("---") # Garis pembatas
+
 # --- LOAD & CLEAN DATA ---
-@st.cache_data(ttl=600) # Cache otomatis refresh setiap 10 menit
+@st.cache_data(ttl=60) # Cache otomatis refresh setiap 10 menit
 def load_data():
     sheet_url = "https://docs.google.com/spreadsheets/d/1yWpWdb-OSJg4b29mjazKZNqcvi6hMlEoXP5ZFuLQ5ks/export?format=xlsx"
     
@@ -73,21 +84,42 @@ if df_alloc_master.empty or df_req_master.empty:
     st.stop()
 
 # --- SIDEBAR / FILTER ---
-st.sidebar.markdown("### Select Donor")
-donor_list = [str(d) for d in df_alloc_master['Donor'].unique() if pd.notna(d)]
-donor_list = sorted(donor_list)
+st.sidebar.markdown("### Pilih Donor")
 
-select_all = st.sidebar.checkbox("Select all", value=True)
+# 1. Simpan daftar donor unik di dalam session state agar persisten
+if 'donor_list' not in st.session_state:
+    st.session_state.donor_list = sorted([str(d) for d in df_alloc_master['Donor'].unique() if pd.notna(d)])
+
+# 2. Set status centang awal (default semuanya bernilai True saat pertama kali dibuka)
+if 'select_all' not in st.session_state:
+    st.session_state.select_all = True
+    for donor in st.session_state.donor_list:
+        st.session_state[f"donor_{donor}"] = True
+
+# 3. Fungsi pembantu (Callback) ketika "Select all" diklik
+def abaikan_atau_pilih_semua():
+    for donor in st.session_state.donor_list:
+        st.session_state[f"donor_{donor}"] = st.session_state.select_all
+
+# 4. Fungsi pembantu (Callback) ketika salah satu donor diubah centangnya
+def periksa_status_donor():
+    # Jika seluruh donor bernilai True, maka "Select all" otomatis True. 
+    # Jika ada satu saja yang False (di-uncheck), maka "Select all" otomatis ikut False.
+    st.session_state.select_all = all(st.session_state[f"donor_{d}"] for d in st.session_state.donor_list)
+
+# 5. Render widget checkbox di sidebar dengan mengunci nilainya menggunakan key
+st.sidebar.checkbox("Select all", key="select_all", on_change=abaikan_atau_pilih_semua)
+
 selected_donors = []
-
-for donor in donor_list:
-    if st.sidebar.checkbox(donor, value=select_all):
+for donor in st.session_state.donor_list:
+    if st.sidebar.checkbox(donor, key=f"donor_{donor}", on_change=periksa_status_donor):
         selected_donors.append(donor)
 
-# Filter DataFrames
-if select_all or len(selected_donors) == len(donor_list):
-    df_alloc = df_alloc_master
-    df_req = df_req_master
+# 6. Filter DataFrames berdasarkan pilihan donor
+if not selected_donors:
+    # Antisipasi jika semua dikosongkan agar dashboard tidak crash karena data kosong
+    df_alloc = df_alloc_master.iloc[0:0]
+    df_req = df_req_master.iloc[0:0]
 else:
     df_alloc = df_alloc_master[df_alloc_master['Donor'].isin(selected_donors)]
     if 'Donor' in df_req_master.columns:
@@ -102,20 +134,71 @@ st.markdown("## Overview")
 col1, col2, col3 = st.columns([1, 1, 2])
 
 def create_gauge(val, maximum, title):
-    max_val = maximum if maximum > 0 else 1 
+    max_val = maximum if maximum > 0 else 1
+    percentage = (val / max_val) * 100 if maximum > 0 else 0
+    
+    # Format teks untuk ujung bawah kiri dan bawah kanan
+    min_label = "0.00M"
+    max_label = f"{max_val/1000000:,.2f}M"
+    
     fig = go.Figure(go.Indicator(
         mode = "gauge+number",
         value = val,
-        number = {'valueformat': '.2s'}, 
-        domain = {'x': [0, 1], 'y': [0, 1]},
-        title = {'text': title, 'font': {'size': 14}},
+        number = {
+            'valueformat': '.2s', 
+            'font': {'size': 50, 'color': 'white', 'family': 'Arial Black'}
+        },
+        domain = {'x': [0, 1], 'y': [0.2, 1]}, # Memberikan ruang kosong di bawah untuk baris teks
         gauge = {
-            'axis': {'range': [None, max_val]},
-            'bar': {'color': "#a5d17f"},
-            'steps': [{'range': [0, max_val], 'color': "#e1e4e8"}],
+            'axis': {
+                'range': [0, max_val], 
+                'showticklabels': False # MATIKAN TICK BAWAAN agar huruf G hilang total
+            },
+            'bar': {'color': "#86ef5d"}, 
+            'bgcolor': "#e5e7eb",
         }
     ))
-    fig.update_layout(height=220, margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor="#6baed6", font=dict(color="white"))
+    
+    # Mengatur posisi 3 teks di baris bawah secara presisi menggunakan koordinat X
+    fig.update_layout(
+        height=240, 
+        margin=dict(l=30, r=30, t=40, b=10),
+        paper_bgcolor="#6baed6",
+        annotations=[
+            # 1. Judul Chart (Atas)
+            dict(
+                text=title,
+                x=0.0, y=1.15,
+                showarrow=False,
+                font={'size': 16, 'color': 'white', 'weight': 'bold'},
+                xref="paper", yref="paper"
+            ),
+            # 2. Label Batas Minimum (Bawah Kiri)
+            dict(
+                text=min_label,
+                x=0.00001, y=0.15,
+                showarrow=False,
+                font={'size': 14, 'color': 'white', 'family': 'Arial'},
+                xref="paper", yref="paper"
+            ),
+            # 3. Teks Persentase Realisasi (Bawah Tengah)
+            dict(
+                text=f"{percentage:.2f}%",
+                x=0.75, y=0.0,
+                showarrow=False,
+                font={'size': 26, 'color': '#374151', 'family': 'Arial Black'},
+                xref="paper", yref="paper"
+            ),
+            # 4. Label Total Alokasi / Maksimum (Bawah Kanan)
+            dict(
+                text=max_label,
+                x=1.1, y=0.15,
+                showarrow=False,
+                font={'size': 14, 'color': 'white', 'family': 'Arial'},
+                xref="paper", yref="paper"
+            )
+        ]
+    )
     return fig
 
 with col1:
@@ -129,7 +212,8 @@ with col2:
     st.plotly_chart(create_gauge(packard_exp, packard_alloc, "Packard 4 Expense (Rp)"), use_container_width=True)
 
 with col3:
-    st.empty() # Placeholder untuk jarak
+    st.empty() # Spacing samping
+
 
 # --- LAYOUT SECTIONS ---
 # Line Chart: Total Expense by Week
@@ -196,9 +280,11 @@ else:
     st.info("Data tanggal belum tersedia untuk menampilkan grafik mingguan.")
 
 # --- BAR CHART & TABLE SECTIONS ---
-col_charts, col_tables = st.columns([1, 1.2])
 
-with col_charts:
+# === BARIS 1: GOALS & PROVINCE (Tetap Berdampingan karena Ringkas) ===
+col_goals, col_prov = st.columns([1, 1.2])
+
+with col_goals:
     # Bar Chart: Goals
     st.markdown("### Total Expense by Goals")
     if 'Goals' in df_req.columns:
@@ -206,44 +292,71 @@ with col_charts:
         fig_bar1 = px.bar(goals_exp, x='Total Expense', y='Goals', orientation='h', color_discrete_sequence=['black'])
         fig_bar1.update_layout(height=250, margin=dict(l=10, r=10, t=10, b=10))
         st.plotly_chart(fig_bar1, use_container_width=True)
-    
-    # Bar Chart: Activity
-    st.markdown("### Total Expense by Activity")
-    if 'Activity' in df_req.columns:
-        act_exp = df_req.groupby('Activity')['Total Expense'].sum().reset_index().sort_values(by='Total Expense', ascending=True)
-        fig_bar2 = px.bar(act_exp.tail(15), x='Total Expense', y='Activity', orientation='h', color_discrete_sequence=['black'])
-        fig_bar2.update_layout(height=400, margin=dict(l=10, r=10, t=10, b=10))
-        st.plotly_chart(fig_bar2, use_container_width=True)
 
-with col_tables:
+with col_prov:
+    # 1. Tabel Details by Province
     st.markdown("### Details by Province")
     if 'Provinsi' in df_req.columns:
         prov_summary = df_req.groupby('Provinsi')['Total Expense'].sum().reset_index()
         prov_summary.rename(columns={'Provinsi': 'Province'}, inplace=True)
         prov_summary['Absorption (%)'] = (prov_summary['Total Expense'] / total_filtered_allocation) * 100 if total_filtered_allocation > 0 else 0
         prov_summary = prov_summary.sort_values(by='Total Expense', ascending=False)
-        st.dataframe(prov_summary.style.format({'Total Expense': 'Rp {:,.0f}', 'Absorption (%)': '{:.2f}%'}).set_table_styles([{'selector': 'th.col_heading', 'props': [('color', 'black'), ('font-weight', 'bold')]}, {'selector': 'th', 'props': [('color', 'black'), ('font-weight', 'bold')]}]).hide(axis="index"), use_container_width=True, hide_index=True)
-
-
-    st.markdown("### Details by Activity")
-    if 'Goals' in df_alloc.columns and 'Activity' in df_alloc.columns:
-        alloc_grouped = df_alloc.groupby(['Goals', 'Activity'])['Allocation'].sum().reset_index()
-        exp_grouped = df_req.groupby(['Goals', 'Activity'])['Total Expense'].sum().reset_index() if ('Goals' in df_req.columns and 'Activity' in df_req.columns) else pd.DataFrame(columns=['Goals', 'Activity', 'Total Expense'])
         
-        act_summary = pd.merge(alloc_grouped, exp_grouped, on=['Goals', 'Activity'], how='left').fillna(0)
-        act_summary['Remaining Budget'] = act_summary['Allocation'] - act_summary['Total Expense']
-        act_summary['Absorption (%)'] = (act_summary['Total Expense'] / act_summary['Allocation']) * 100
-        act_summary['Absorption (%)'] = act_summary['Absorption (%)'].replace([np.inf, -np.inf], 0).fillna(0)
+        st.dataframe(prov_summary.style.format({'Total Expense': 'Rp {:,.0f}', 'Absorption (%)': '{:.2f}%'}).set_table_styles([{'selector': 'th', 'props': [('color', 'black'), ('font-weight', 'bold')]}]), use_container_width=True)
         
-        st.dataframe(act_summary.style.format({
-            'Allocation': 'Rp {:,.0f}', 
-            'Total Expense': 'Rp {:,.0f}', 
-            'Remaining Budget': 'Rp {:,.0f}', 
-            'Absorption (%)': '{:.2f}%'
-        }).set_table_styles([{'selector': 'th.col_heading', 'props': [('color', 'black'), ('font-weight', 'bold')]}, {'selector': 'th', 'props': [('color', 'black'), ('font-weight', 'bold')]}]).hide(axis="index"), use_container_width=True, hide_index=True, height=350)
+        tot_exp_prov = prov_summary['Total Expense'].sum()
+        tot_abs_prov = (tot_exp_prov / total_filtered_allocation) * 100 if total_filtered_allocation > 0 else 0
+        df_tot_prov = pd.DataFrame([{'Province': 'TOTAL', 'Total Expense': tot_exp_prov, 'Absorption (%)': tot_abs_prov}])
+        
+        st.dataframe(df_tot_prov.style.format({'Total Expense': 'Rp {:,.0f}', 'Absorption (%)': '{:.2f}%'}).set_table_styles([{'selector': 'th', 'props': [('display', 'none')]}]), use_container_width=True)
+
+st.markdown("---")
+
+# === BARIS 2: SEKSI AKTIVITAS (Menumpuk: Tabel di Atas, Grafik di Bawah) ===
+
+# 2. Tabel Details by Activity (DI ATAS - FULL WIDTH)
+st.markdown("### Details by Activity")
+if 'Goals' in df_alloc.columns and 'Activity' in df_alloc.columns:
+    alloc_grouped = df_alloc.groupby(['Goals', 'Activity'])['Allocation'].sum().reset_index()
+    exp_grouped = df_req.groupby(['Goals', 'Activity'])['Total Expense'].sum().reset_index() if ('Goals' in df_req.columns and 'Activity' in df_req.columns) else pd.DataFrame(columns=['Goals', 'Activity', 'Total Expense'])
+    
+    act_summary = pd.merge(alloc_grouped, exp_grouped, on=['Goals', 'Activity'], how='left').fillna(0)
+    act_summary['Remaining Budget'] = act_summary['Allocation'] - act_summary['Total Expense']
+    act_summary['Absorption (%)'] = (act_summary['Total Expense'] / act_summary['Allocation']) * 100
+    act_summary['Absorption (%)'] = act_summary['Absorption (%)'].replace([np.inf, -np.inf], 0).fillna(0)
+    
+    # Render Tabel Utama Aktivitas
+    st.dataframe(act_summary.style.format({
+        'Allocation': 'Rp {:,.0f}', 'Total Expense': 'Rp {:,.0f}', 'Remaining Budget': 'Rp {:,.0f}', 'Absorption (%)': '{:.2f}%'
+    }).set_table_styles([{'selector': 'th', 'props': [('color', 'black'), ('font-weight', 'bold')]}]), use_container_width=True, height=300)
+    
+    # Render Baris Total Aktivitas
+    tot_alloc_act = act_summary['Allocation'].sum()
+    tot_exp_act = act_summary['Total Expense'].sum()
+    tot_rem_act = act_summary['Remaining Budget'].sum()
+    tot_abs_act = (tot_exp_act / tot_alloc_act) * 100 if tot_alloc_act > 0 else 0
+    df_tot_act = pd.DataFrame([{
+        'Goals': 'TOTAL', 'Activity': '', 'Allocation': tot_alloc_act, 
+        'Total Expense': tot_exp_act, 'Remaining Budget': tot_rem_act, 'Absorption (%)': tot_abs_act
+    }])
+    
+    st.dataframe(df_tot_act.style.format({
+        'Allocation': 'Rp {:,.0f}', 'Total Expense': 'Rp {:,.0f}', 'Remaining Budget': 'Rp {:,.0f}', 'Absorption (%)': '{:.2f}%'
+    }).set_table_styles([{'selector': 'th', 'props': [('display', 'none')]}]), use_container_width=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# Bar Chart: Activity (DI BAWAH - FULL WIDTH)
+st.markdown("### Total Expense by Activity")
+if 'Activity' in df_req.columns:
+    act_exp = df_req.groupby('Activity')['Total Expense'].sum().reset_index().sort_values(by='Total Expense', ascending=True)
+    # Membuat grafik lebih tinggi (height=500) agar label sumbu Y yang panjang tidak bertumpuk
+    fig_bar2 = px.bar(act_exp.tail(15), x='Total Expense', y='Activity', orientation='h', color_discrete_sequence=['black'])
+    fig_bar2.update_layout(height=500, margin=dict(l=10, r=10, t=10, b=10))
+    st.plotly_chart(fig_bar2, use_container_width=True)
 
 
-
+# === BARIS 3: GOALS SUMMARY TABLE (Paling Bawah) ===
 st.markdown("---")
 st.markdown("### Goals Summary Table")
 if 'Goals' in df_alloc.columns:
@@ -255,15 +368,43 @@ if 'Goals' in df_alloc.columns:
     goals_summary['Absorption (%)'] = (goals_summary['Total Expense'] / goals_summary['Allocation']) * 100
     goals_summary['Absorption (%)'] = goals_summary['Absorption (%)'].replace([np.inf, -np.inf], 0).fillna(0)
     
-    goals_summary['KPI'] = np.where(goals_summary['Absorption (%)'] < 20, 'Low', 'High')
+    conditions = [
+        goals_summary['Absorption (%)'] > 100,
+        goals_summary['Absorption (%)'] < 50,
+        goals_summary['Absorption (%)'] < 70
+    ]
+    choices = ['Overspan', 'Low', 'Medium']
+    goals_summary['KPI'] = np.select(conditions, choices, default='Good')
 
     def color_kpi(val):
-        color = 'red' if val == 'Low' else 'green'
+        if val == 'Low': color = 'red'
+        elif val == 'Medium': color = '#ff9900'
+        elif val == 'Good': color = 'green'
+        elif val == 'Overspan': color = 'purple'
+        else: color = 'black'
         return f'color: {color}; font-weight: bold;'
-        
+
     st.dataframe(goals_summary.style.map(color_kpi, subset=['KPI']).format({
-        'Allocation': 'Rp {:,.0f}', 
-        'Total Expense': 'Rp {:,.0f}', 
-        'Remaining Budget': 'Rp {:,.0f}', 
-        'Absorption (%)': '{:.2f}%'
-    }).set_table_styles([{'selector': 'th.col_heading', 'props': [('color', 'black'), ('font-weight', 'bold')]}, {'selector': 'th', 'props': [('color', 'black'), ('font-weight', 'bold')]}]).hide(axis="index"), use_container_width=True, hide_index=True)
+        'Allocation': 'Rp {:,.0f}', 'Total Expense': 'Rp {:,.0f}', 'Remaining Budget': 'Rp {:,.0f}', 'Absorption (%)': '{:.2f}%'
+    }).set_table_styles([{'selector': 'th', 'props': [('color', 'black'), ('font-weight', 'bold')]}]), use_container_width=True)
+
+    # Tabel Total untuk Goals Summary Table
+    tot_alloc_goals = goals_summary['Allocation'].sum()
+    tot_exp_goals = goals_summary['Total Expense'].sum()
+    tot_rem_goals = goals_summary['Remaining Budget'].sum()
+    tot_abs_goals = (tot_exp_goals / tot_alloc_goals) * 100 if tot_alloc_goals > 0 else 0
+    
+    if tot_abs_goals > 100: tot_kpi_goals = 'Overspan'
+    elif tot_abs_goals < 50: tot_kpi_goals = 'Low'
+    elif tot_abs_goals < 70: tot_kpi_goals = 'Medium'
+    else: tot_kpi_goals = 'Good'
+
+    df_tot_goals = pd.DataFrame([{
+        'Goals': 'TOTAL', 'Allocation': tot_alloc_goals, 
+        'Total Expense': tot_exp_goals, 'Remaining Budget': tot_rem_goals, 
+        'Absorption (%)': tot_abs_goals, 'KPI': tot_kpi_goals
+    }])
+
+    st.dataframe(df_tot_goals.style.map(color_kpi, subset=['KPI']).format({
+        'Allocation': 'Rp {:,.0f}', 'Total Expense': 'Rp {:,.0f}', 'Remaining Budget': 'Rp {:,.0f}', 'Absorption (%)': '{:.2f}%'
+    }).set_table_styles([{'selector': 'th', 'props': [('display', 'none')]}]), use_container_width=True)
