@@ -34,9 +34,9 @@ st.title("Dashboard Budget FP")
 st.markdown("---") # Garis pembatas
 
 # --- LOAD & CLEAN DATA ---
-@st.cache_data(ttl=60) # Cache otomatis refresh setiap 10 menit
+@st.cache_data(ttl=60) # Cache otomatis refresh setiap 1 menit
 def load_data():
-    sheet_url = "https://docs.google.com/spreadsheets/d/1yWpWdb-OSJg4b29mjazKZNqcvi6hMlEoXP5ZFuLQ5ks/export?format=xlsx"
+    sheet_url = "https://docs.google.com/spreadsheets/d/1-IU5pot4Ir7HLBDxmf2KEK9CCMvVxXIYKq5FvVqJcWM/export?format=xlsx"
     
     try:
         # Membaca seluruh sheet menjadi dictionary DataFrames
