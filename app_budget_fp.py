@@ -170,9 +170,9 @@ def create_gauge(val, maximum, title):
             # Judul Chart (Atas Kiri)
             dict(
                 text=title,
-                x=0.0, y=1.2,
+                x=0.001, y=1.25,
                 showarrow=False,
-                font={'size': 16, 'color': 'white', 'weight': 'bold'},
+                font={'size': 12, 'color': 'white', 'weight': 'bold'},
                 xref="paper", yref="paper"
             ),
             # Angka Utama Besar (Tepat di Tengah-Tengah di dalam Arc)
@@ -180,7 +180,7 @@ def create_gauge(val, maximum, title):
                 text=center_number,
                 x=0.5, y=0.45, 
                 showarrow=False,
-                font={'size': 20, 'color': 'white', 'family': 'Arial Black'},
+                font={'size': 18, 'color': 'white', 'family': 'Arial Black'},
                 xref="paper", yref="paper"
             ),
             # Label Batas Minimum (Bawah Kiri)
@@ -188,7 +188,7 @@ def create_gauge(val, maximum, title):
                 text=min_label,
                 x=0.0, y=0.0,
                 showarrow=False,
-                font={'size': 13, 'color': 'white', 'family': 'Arial'},
+                font={'size': 10, 'color': 'white', 'family': 'Arial'},
                 xref="paper", yref="paper"
             ),
             # Teks Persentase Realisasi (Bawah Tengah)
@@ -196,7 +196,7 @@ def create_gauge(val, maximum, title):
                 text=f"{percentage:.2f}%",
                 x=0.5, y=0.1,
                 showarrow=False,
-                font={'size': 18, 'color': '#374151', 'family': 'Arial Black'},
+                font={'size': 16, 'color': '#374151', 'family': 'Arial Black'},
                 xref="paper", yref="paper"
             ),
             # Label Total Alokasi / Maksimum (Bawah Kanan)
@@ -204,7 +204,7 @@ def create_gauge(val, maximum, title):
                 text=max_label,
                 x=1.0, y=0.0,
                 showarrow=False,
-                font={'size': 13, 'color': 'white', 'family': 'Arial'},
+                font={'size': 10, 'color': 'white', 'family': 'Arial'},
                 xref="paper", yref="paper"
             )
         ]
