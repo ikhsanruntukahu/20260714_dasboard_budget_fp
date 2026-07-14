@@ -137,64 +137,74 @@ def create_gauge(val, maximum, title):
     max_val = maximum if maximum > 0 else 1
     percentage = (val / max_val) * 100 if maximum > 0 else 0
     
-    # Format teks untuk ujung bawah kiri dan bawah kanan
+    # 1. Format teks angka tengah & maksimum secara dinamis (contoh: 520M atau 92.48M)
+    center_number = f"{val/1000000:,.2f}M".rstrip('0').rstrip('.')
+    if center_number.endswith('.'): 
+        center_number = center_number[:-1]
+        
     min_label = "0.00M"
-    max_label = f"{max_val/1000000:,.2f}M"
+    max_label = f"{max_val/1000000:,.2f}M".rstrip('0').rstrip('.')
+    if max_label.endswith('.'): 
+        max_label = max_label[:-1]
     
     fig = go.Figure(go.Indicator(
-        mode = "gauge+number",
+        mode = "gauge", # KUNCI: Diubah menjadi 'gauge' saja untuk mematikan angka bawaan Plotly yang rusak
         value = val,
-        number = {
-            'valueformat': '.2s', 
-            'font': {'size': 50, 'color': 'white', 'family': 'Arial Black'}
-        },
-        domain = {'x': [0, 1], 'y': [0.2, 1]}, # Memberikan ruang kosong di bawah untuk baris teks
+        domain = {'x': [0, 1], 'y': [0.1, 0.95]}, # Memberikan ruang proporsional
         gauge = {
             'axis': {
                 'range': [0, max_val], 
-                'showticklabels': False # MATIKAN TICK BAWAAN agar huruf G hilang total
+                'showticklabels': False # Sembunyikan tick otomatis agar bersih
             },
             'bar': {'color': "#86ef5d"}, 
             'bgcolor': "#e5e7eb",
         }
     ))
     
-    # Mengatur posisi 3 teks di baris bawah secara presisi menggunakan koordinat X
+    # 2. Atur posisi 5 elemen teks secara absolut berbasis kanvas (Koordinat 0 sampai 1)
     fig.update_layout(
         height=240, 
-        margin=dict(l=30, r=30, t=40, b=10),
+        margin=dict(l=35, r=35, t=45, b=15),
         paper_bgcolor="#6baed6",
         annotations=[
-            # 1. Judul Chart (Atas)
+            # Judul Chart (Atas Kiri)
             dict(
                 text=title,
-                x=0.0, y=1.15,
+                x=0.0, y=1.2,
                 showarrow=False,
                 font={'size': 16, 'color': 'white', 'weight': 'bold'},
                 xref="paper", yref="paper"
             ),
-            # 2. Label Batas Minimum (Bawah Kiri)
+            # Angka Utama Besar (Tepat di Tengah-Tengah di dalam Arc)
+            dict(
+                text=center_number,
+                x=0.5, y=0.45, 
+                showarrow=False,
+                font={'size': 20, 'color': 'white', 'family': 'Arial Black'},
+                xref="paper", yref="paper"
+            ),
+            # Label Batas Minimum (Bawah Kiri)
             dict(
                 text=min_label,
-                x=0.00001, y=0.15,
+                x=0.0, y=0.0,
                 showarrow=False,
-                font={'size': 14, 'color': 'white', 'family': 'Arial'},
+                font={'size': 13, 'color': 'white', 'family': 'Arial'},
                 xref="paper", yref="paper"
             ),
-            # 3. Teks Persentase Realisasi (Bawah Tengah)
+            # Teks Persentase Realisasi (Bawah Tengah)
             dict(
                 text=f"{percentage:.2f}%",
-                x=0.75, y=0.0,
+                x=0.5, y=0.1,
                 showarrow=False,
-                font={'size': 26, 'color': '#374151', 'family': 'Arial Black'},
+                font={'size': 18, 'color': '#374151', 'family': 'Arial Black'},
                 xref="paper", yref="paper"
             ),
-            # 4. Label Total Alokasi / Maksimum (Bawah Kanan)
+            # Label Total Alokasi / Maksimum (Bawah Kanan)
             dict(
                 text=max_label,
-                x=1.1, y=0.15,
+                x=1.0, y=0.0,
                 showarrow=False,
-                font={'size': 14, 'color': 'white', 'family': 'Arial'},
+                font={'size': 13, 'color': 'white', 'family': 'Arial'},
                 xref="paper", yref="paper"
             )
         ]
