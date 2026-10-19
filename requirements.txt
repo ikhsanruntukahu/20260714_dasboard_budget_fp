@@ -4,3 +4,5 @@ pandas
 plotly
 numpy
 openpyxl
+matplotlib
+jinja2
